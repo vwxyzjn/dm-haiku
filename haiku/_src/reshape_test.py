@@ -81,6 +81,7 @@ class ReshapeTest(parameterized.TestCase):
         apply_fn,
         polymorphic_shapes=[None, None, jax2tf.PolyShape("_", "T", ...)],  # pytype: disable=wrong-arg-count
         with_gradient=True,
+        native_serialization_strict_checks=False,
     )
 
     # Test equality for different inputs shapes.
