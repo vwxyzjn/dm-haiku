@@ -23,8 +23,8 @@ import warnings
 
 import dm_env
 import haiku as hk
-from examples.impala import agent as agent_lib
-from examples.impala import util
+import agent as agent_lib
+import util
 import jax
 from jax.example_libraries import optimizers
 import jax.numpy as jnp
@@ -62,6 +62,7 @@ class Learner:
       frames_per_iter: int,
       max_abs_reward: float = 0,
       logger=None,
+      writer=None,
   ):
     if jax.device_count() > 1:
       warnings.warn('Note: the impala example will only take advantage of a '
@@ -87,12 +88,13 @@ class Learner:
     if logger is None:
       logger = util.NullLogger()
     self._logger = logger
+    self.writer = writer
 
   def _loss(
       self,
       theta: hk.Params,
       trajectories: util.Transition,
-  ) -> Tuple[jax.Array, Dict[str, jax.Array]]:
+  ) -> Tuple[jnp.ndarray, Dict[str, jnp.ndarray]]:
     """Compute vtrace-based actor-critic loss."""
     initial_state = jax.tree_util.tree_map(
         lambda t: t[0], trajectories.agent_state)
@@ -211,6 +213,8 @@ class Learner:
           'num_frames': num_frames,
       })
       self._logger.write(logs)
+      for k, v in logs.items():
+        self.writer.add_scalar(f"losses/{k}", v, num_frames)
 
     # Shut down.
     self._done = True

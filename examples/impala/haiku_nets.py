@@ -154,6 +154,7 @@ class AtariNet(hk.RNNCore):
     else:
       torso = AtariShallowTorso()
 
+    print("x.observation", x.observation.shape)
     torso_output = hk.BatchApply(torso)(x.observation)
     if self._use_lstm:
       should_reset = jnp.equal(x.step_type, int(dm_env.StepType.FIRST))

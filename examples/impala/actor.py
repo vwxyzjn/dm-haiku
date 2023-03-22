@@ -15,9 +15,9 @@
 """IMPALA actor class."""
 import dm_env
 import haiku as hk
-from examples.impala import agent as agent_lib
-from examples.impala import learner as learner_lib
-from examples.impala import util
+import agent as agent_lib
+import learner as learner_lib
+import util
 import jax
 import numpy as np
 
@@ -33,6 +33,7 @@ class Actor:
       learner: learner_lib.Learner,
       rng_seed: int = 42,
       logger=None,
+      writer=None,
   ):
     self._agent = agent
     self._env = env
@@ -46,6 +47,7 @@ class Actor:
     if logger is None:
       logger = util.NullLogger()
     self._logger = logger
+    self.writer = writer
 
     self._episode_return = 0.
 
@@ -75,6 +77,8 @@ class Actor:
             'num_frames': frame_count,
             'episode_return': self._episode_return,
         })
+        if self.writer is not None:
+          self.writer.add_scalar('charts/episodic_return', self._episode_return, frame_count)
         self._episode_return = 0.
       else:
         self._episode_return += timestep.reward or 0.

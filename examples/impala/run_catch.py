@@ -14,24 +14,34 @@
 # ==============================================================================
 """Single-process IMPALA wiring."""
 
+import functools
 import threading
 from typing import List
 
+import os
+import uuid
+os.environ[
+    "XLA_PYTHON_CLIENT_MEM_FRACTION"
+] = "0.6"  # see https://github.com/google/jax/discussions/6332#discussioncomment-1279991
+
 from absl import app
 from bsuite.environments import catch
-from examples.impala import actor as actor_lib
-from examples.impala import agent as agent_lib
-from examples.impala import haiku_nets
-from examples.impala import learner as learner_lib
-from examples.impala import util
+import actor as actor_lib
+import agent as agent_lib
+import haiku_nets
+import learner as learner_lib
+import util
 import jax
 import optax
 
+from atari_env import AtariEnv
+from tensorboardX import SummaryWriter
+
 ACTION_REPEAT = 1
-BATCH_SIZE = 2
+BATCH_SIZE = 32
 DISCOUNT_FACTOR = 0.99
-MAX_ENV_FRAMES = 20000
-NUM_ACTORS = 2
+MAX_ENV_FRAMES = 50000000
+NUM_ACTORS = 32
 UNROLL_LENGTH = 20
 
 FRAMES_PER_ITER = ACTION_REPEAT * BATCH_SIZE * UNROLL_LENGTH
@@ -45,15 +55,30 @@ def run_actor(actor: actor_lib.Actor, stop_signal: List[bool]):
 
 
 def main(_):
+  env_id = "Breakout-v5"
+  seed = 1
+  run_name = f"dm_haiku_impala_{env_id}_{seed}_{uuid.uuid4()}"
+
+  import wandb
+
+  wandb.init(
+      project="cleanrl",
+      sync_tensorboard=True,
+      name=run_name,
+      monitor_gym=True,
+      save_code=True,
+  )
+  writer = SummaryWriter(f"runs/{run_name}")
+
   # A thunk that builds a new environment.
   # Substitute your environment here!
-  build_env = catch.Catch
+  build_env = AtariEnv
 
   # Construct the agent. We need a sample environment for its spec.
   env_for_spec = build_env()
   num_actions = env_for_spec.action_spec().num_values
   agent = agent_lib.Agent(num_actions, env_for_spec.observation_spec(),
-                          haiku_nets.CatchNet)
+                          functools.partial(haiku_nets.AtariNet, use_resnet=False, use_lstm=False))
 
   # Construct the optimizer.
   max_updates = MAX_ENV_FRAMES / FRAMES_PER_ITER
@@ -69,6 +94,7 @@ def main(_):
       FRAMES_PER_ITER,
       max_abs_reward=1.,
       logger=util.AbslLogger(),  # Provide your own logger here.
+      writer=writer,
   )
 
   # Construct the actors on different threads.
@@ -83,6 +109,7 @@ def main(_):
         learner,
         rng_seed=i,
         logger=util.AbslLogger(),  # Provide your own logger here.
+        writer=writer,
     )
     args = (actor, stop_signal)
     actor_threads.append(threading.Thread(target=run_actor, args=args))

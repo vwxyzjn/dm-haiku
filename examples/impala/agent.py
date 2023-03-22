@@ -19,7 +19,7 @@ from typing import Any, Callable, Optional, Tuple
 
 import dm_env
 import haiku as hk
-from examples.impala import util
+import util
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -66,6 +66,9 @@ class Agent:
     dummy_inputs = util.preprocess_step(dm_env.restart(dummy_inputs))
     dummy_inputs = jax.tree_util.tree_map(
         lambda t: t[None, None, ...], dummy_inputs)
+    
+    print("dummy_inputs", dummy_inputs)
+    print(hk.experimental.tabulate(self._apply_fn)(dummy_inputs, self.initial_state(1)))
     return self._init_fn(rng_key, dummy_inputs, self.initial_state(1))
 
   @functools.partial(jax.jit, static_argnums=(0, 1))
